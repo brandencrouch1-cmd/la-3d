@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Los Angeles 3D</title>
+<meta name="description" content="Fly over a photorealistic 3D Los Angeles: Santa Monica Pier, Hollywood, Downtown and the whole basin.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+  :root{
+    --glass: rgba(18,14,26,0.50);
+    --glass-strong: rgba(18,14,26,0.66);
+    --line: rgba(255,255,255,0.14);
+    --text: #fff8f1;
+    --muted: rgba(255,240,228,0.74);
+    --accent: #ffb36b;
+    --grad: linear-gradient(135deg,#ffd39a,#ff9a6b);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#140f1c;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+  #viewer{position:fixed;inset:0}
+  .cesium-viewer-bottom{left:50%!important;right:auto!important;transform:translateX(-50%);bottom:6px!important;padding:0!important}
+  .cesium-credit-lightbox-overlay{z-index:30}
+  .labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+  .vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(14,6,18,0.34) 100%)}
+
+  .glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.25)}
+  button{font-family:inherit}
+
+  #topbar{position:fixed;top:16px;left:16px;right:16px;display:flex;align-items:center;gap:10px;pointer-events:none;z-index:5}
+  #brand{pointer-events:auto;padding:10px 16px;display:flex;flex-direction:column;line-height:1.1;flex-shrink:0}
+  #brand b{font-size:17px;font-weight:800;letter-spacing:0.2px}
+  #brand span{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:1.4px;text-transform:uppercase;margin-top:4px}
+  #nav{pointer-events:auto;display:flex;gap:2px;padding:5px;margin:0 auto;overflow-x:auto;scrollbar-width:none;min-width:0}
+  #nav::-webkit-scrollbar{display:none}
+  .pillbtn{all:unset;cursor:pointer;padding:9px 13px;border-radius:11px;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;transition:background .2s,color .2s}
+  .pillbtn:hover{color:#fff;background:rgba(255,255,255,0.08)}
+  .pillbtn.active{color:#24121a;background:var(--grad)}
+  .pillbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #right{pointer-events:auto;display:flex;gap:10px;flex-shrink:0}
+  #tod{display:flex;gap:2px;padding:5px}
+  #tod .pillbtn{padding:9px 11px}
+  #tourBtn{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;padding:0 16px;font-size:13px;font-weight:700;color:#24121a;background:var(--grad);border-radius:14px;box-shadow:0 8px 30px rgba(255,140,90,0.35);white-space:nowrap}
+  #tourBtn:hover{filter:brightness(1.06)}
+  #tourBtn svg{width:12px;height:12px}
+
+  #tourBar{position:fixed;top:84px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:8px 10px 8px 16px;z-index:5;transition:opacity .35s, transform .35s}
+  #tourBar.hide{opacity:0;pointer-events:none;transform:translate(-50%,-8px)}
+  #tourBar .lbl2{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #tourBar .lbl2 b{color:#fff}
+  #tourProg{width:160px;height:4px;border-radius:4px;background:rgba(255,255,255,0.18);overflow:hidden}
+  #tourProg div{height:100%;width:0;background:var(--grad);transition:width .4s}
+  #tourBar .pillbtn{padding:7px 11px;font-size:12px}
+
+  #card{position:fixed;left:16px;bottom:40px;width:min(370px,calc(100vw - 32px));padding:18px 20px;transition:opacity .45s ease, transform .45s ease;z-index:5}
+  #card.hide{opacity:0;transform:translateY(10px);pointer-events:none}
+  #card .kicker{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--accent);font-weight:700}
+  #card h2{margin:6px 0 8px;font-size:22px;font-weight:800;letter-spacing:-0.3px}
+  #card p{margin:0;font-size:13.5px;line-height:1.55;color:var(--muted)}
+  #card .close{all:unset;position:absolute;top:10px;right:14px;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+  #card .close:hover{color:#fff}
+
+  #hint{position:fixed;right:16px;bottom:40px;padding:10px 14px;font-size:12px;color:var(--muted);line-height:1.7;z-index:5}
+  #hint kbd{font-family:inherit;font-size:11px;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.12);color:#fff}
+  #hint .row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+  #quality{all:unset;cursor:pointer;font-weight:600;color:var(--muted);font-size:12px}
+  #quality:hover{color:#fff}
+
+  .lbl{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:7px;padding:6px 12px 6px 9px;border-radius:999px;background:var(--glass-strong);border:1px solid rgba(255,255,255,0.22);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:12.5px;font-weight:700;white-space:nowrap;color:#fff;transition:opacity .3s;will-change:transform;opacity:0}
+  .lbl.show{opacity:1}
+  .lbl:hover{background:rgba(40,24,40,0.85)}
+  .lbl i{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(255,179,107,0.28)}
+  .lbl::after{content:"";position:absolute;left:50%;bottom:-7px;width:1px;height:7px;background:rgba(255,255,255,0.5)}
+
+  #loader{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;background:linear-gradient(180deg,#22183a 0%,#6a3558 42%,#e9805a 76%,#ffc58a 100%);transition:opacity .9s ease;z-index:20;text-align:center}
+  #loader.done{opacity:0;pointer-events:none}
+  #loader h1{margin:0;font-size:clamp(38px,7vw,72px);font-weight:900;letter-spacing:-1.5px;text-shadow:0 4px 30px rgba(0,0,0,0.25)}
+  #loader .sub{font-size:13px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,245,235,0.88);font-weight:600}
+  #loader .bar{width:min(320px,70vw);height:4px;border-radius:4px;background:rgba(255,255,255,0.25);overflow:hidden}
+  #loader .bar div{height:100%;width:0;background:#fff;border-radius:4px;transition:width .3s}
+  #loader .step{font-size:12px;color:rgba(255,245,235,0.85);min-height:16px}
+  #setup,#loadErr{display:none;max-width:560px;text-align:left;padding:20px 22px;font-size:13.5px;line-height:1.6;color:var(--text)}
+  #setup h3,#loadErr h3{margin:0 0 8px;font-size:16px;font-weight:800}
+  #setup ol{margin:8px 0 0;padding-left:20px}
+  #setup li{margin:4px 0}
+  #setup code,#loadErr code{font-size:12px;background:rgba(255,255,255,0.12);padding:1px 6px;border-radius:5px}
+  #setup a,#loadErr a{color:#ffd39a}
+
+  @media (max-width:900px){
+    #brand{display:none}
+    #hint{display:none}
+    #topbar{flex-wrap:wrap}
+    #nav{order:3;flex-basis:100%}
+    #right{margin-left:auto}
+    #tourBar{top:128px}
+    #card{bottom:34px}
+  }
+  @media (max-width:520px){
+    #tod .pillbtn{padding:8px 8px;font-size:12px}
+    #tourBtn{padding:0 12px}
+    #tourBtn span{display:none}
+  }
+</style>
+<script>window.CESIUM_BASE_URL = "https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/";</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/Cesium.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<div id="viewer"></div>
+<div class="vignette"></div>
+<div class="labels" id="labels"></div>
+
+<div id="topbar">
+  <div id="brand" class="glass"><b>Los Angeles</b><span>Photoreal · 3D</span></div>
+  <nav id="nav" class="glass" aria-label="Landmarks"></nav>
+  <div id="right">
+    <div id="tod" class="glass" role="group" aria-label="Time of day">
+      <button class="pillbtn" data-tod="day">Day</button>
+      <button class="pillbtn active" data-tod="golden">Golden hour</button>
+      <button class="pillbtn" data-tod="night">Night</button>
+    </div>
+    <button id="tourBtn" title="Play the guided flyover">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg><span>Tour</span>
+    </button>
+  </div>
+</div>
+
+<div id="tourBar" class="glass hide">
+  <div class="lbl2">Tour · <b id="tourStop"></b></div>
+  <div id="tourProg"><div></div></div>
+  <button class="pillbtn" id="tourPause">Pause</button>
+  <button class="pillbtn" id="tourNext">Next</button>
+  <button class="pillbtn" id="tourExit">Exit</button>
+</div>
+
+<div id="card" class="glass hide">
+  <button class="close" aria-label="Close">×</button>
+  <div class="kicker" id="cardKicker"></div>
+  <h2 id="cardTitle"></h2>
+  <p id="cardText"></p>
+</div>
+
+<div id="hint" class="glass">
+  <kbd>Drag</kbd> pan &nbsp;<kbd>Right-drag</kbd> zoom &nbsp;<kbd>Ctrl</kbd>+<kbd>Drag</kbd> tilt &amp; rotate<br>
+  <div class="row"><span><kbd>Scroll</kbd> zoom &nbsp;<kbd>Esc</kbd> stop</span><button id="quality" title="Switch detail level">Quality: High</button></div>
+</div>
+
+<div id="loader">
+  <div class="sub">Photoreal 3D</div>
+  <h1>Los Angeles</h1>
+  <div class="bar"><div id="loadBar"></div></div>
+  <div class="step" id="loadStep">Starting…</div>
+  <div id="setup" class="glass">
+    <h3>Add a Google Maps API key to see the city</h3>
+    This page streams Google's Photorealistic 3D Tiles, which need your own key.
+    <ol>
+      <li>In <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>, create a project and turn on billing.</li>
+      <li>Enable the <b>Map Tiles API</b>, then create an API key under <i>APIs &amp; Services → Credentials</i>.</li>
+      <li>Restrict the key to the Map Tiles API and to HTTP referrers <code>http://localhost:5180/*</code> and <code>https://&lt;your-username&gt;.github.io/*</code>.</li>
+      <li>Paste it into <code>config.js</code> as <code>googleMapsKey</code> and reload.</li>
+    </ol>
+  </div>
+  <div id="loadErr" class="glass"></div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
